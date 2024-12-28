@@ -221,12 +221,467 @@ class GCN_CN_v4(nn.Module):
                                                training=self.training)
 
         pooled_features = self.attention(features)
+        print("att shape:",pooled_features.shape)
         pooled_features = torch.t(pooled_features)
 
         scores = nn.functional.relu(self.fully_connected_first(pooled_features))
         scores = self.scoring_layer(scores)
         score = F.log_softmax(scores, dim=1)
         return score
+
+class GCN_CN_v4_AE_bn32_twoStage(nn.Module):
+    def __init__(self, feature_dim_size, num_classes, dropout):
+        super(GCN_CN_v4_AE_bn32_twoStage, self).__init__()
+
+        self.number_labels = feature_dim_size
+        self.num_classes = num_classes
+
+        self.filters_1 = 64
+        self.filters_2 = 32
+        self.filters_3 = 32
+        self.bottle_neck_neurons = 32
+
+        # encoder layers
+        self.convolution_1 = GCNConv(in_channels=self.number_labels, out_channels=self.filters_1)
+        self.convolution_2 = GCNConv(in_channels=self.filters_1, out_channels=self.filters_2)
+        self.convolution_3 = GCNConv(in_channels=self.filters_2, out_channels=self.filters_3)
+        #self.attention = AttentionModule(self.filters_3)
+        self.attention = torch.nn.MultiheadAttention(embed_dim=self.filters_3, num_heads=1)
+
+        # bottleneck layer
+        self.convolution_4 = GCNConv(in_channels=self.filters_3, out_channels=self.bottle_neck_neurons)
+
+        # decoder layers for adj matrix
+        self.convolution_5_adj = GCNConv(in_channels=self.bottle_neck_neurons, out_channels=self.filters_2)
+        self.convolution_6_adj = GCNConv(in_channels=self.filters_2, out_channels=self.filters_1)
+        self.convolution_7_adj = GCNConv(in_channels=self.filters_1, out_channels=2)
+
+        # decoder layers for node features
+        self.convolution_5_feat = GCNConv(in_channels=self.bottle_neck_neurons, out_channels=self.filters_2)
+        self.convolution_6_feat = GCNConv(in_channels=self.filters_2, out_channels=self.filters_1)
+        self.convolution_7_feat = GCNConv(in_channels=self.filters_1, out_channels=self.number_labels)
+
+
+        self.dropout = dropout
+
+    def forward(self, adj, features):
+        # encoder
+        print(adj.shape)
+        print(features.shape)
+        features = self.convolution_1(x=features, edge_index=adj)
+        #print("conv1 shape:",features.shape)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+        features = self.convolution_2(x=features, edge_index=adj)
+        #print("conv2 shape:",features.shape)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+        features = self.convolution_3(x=features, edge_index=adj)
+        #print("conv3 shape:",features.shape)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+
+        pooled_features = features.unsqueeze(0)
+        pooled_features, _ = self.attention(pooled_features, pooled_features, pooled_features)
+        pooled_features = pooled_features.squeeze(0)
+        #print("att shape:",pooled_features.shape)
+
+
+        #pooled_features = self.attention(features)
+        #pooled_features = torch.t(pooled_features)
+
+        # bottleneck
+        pooled_features = self.convolution_4(pooled_features, edge_index=adj)
+        #print("conv4 shape:",pooled_features.shape)
+        pooled_features = nn.functional.relu(pooled_features)
+        pooled_features = nn.functional.dropout(pooled_features,
+                                               p=self.dropout,
+                                               training=self.training)
+
+        # decoder adjacency matrix
+        decoded_adj = self.convolution_5_adj(pooled_features, edge_index=adj)
+        print("conv5 adj shape:",decoded_adj.shape)
+        decoded_adj = nn.functional.relu(decoded_adj)
+        decoded_adj = self.convolution_6_adj(decoded_adj, edge_index=adj)
+        print("conv6 adj shape:",decoded_adj.shape)
+        decoded_adj = nn.functional.relu(decoded_adj)
+        decoded_adj = self.convolution_7_adj(decoded_adj, edge_index=adj)
+        print("conv7 adj shape:",decoded_adj.shape)
+        decoded_adj = nn.functional.relu(decoded_adj)
+
+        # decoder node features
+        decoded_features = self.convolution_5_feat(pooled_features, edge_index=adj)
+        #print("conv5 shape:",decoded_features.shape)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        decoded_features = self.convolution_6_feat(decoded_features, edge_index=adj)
+        #print("conv6 shape:",decoded_features.shape)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        decoded_features = self.convolution_7_feat(decoded_features, edge_index=adj)
+        print("conv7 feat shape:",decoded_features.shape)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        return decoded_adj, decoded_features
+
+class GCN_CN_v4_AE_bn32(nn.Module):
+    def __init__(self, feature_dim_size, num_classes, dropout):
+        super(GCN_CN_v4_AE_bn32, self).__init__()
+
+        self.number_labels = feature_dim_size
+        self.num_classes = num_classes
+
+        self.filters_1 = 64
+        self.filters_2 = 32
+        self.filters_3 = 32
+        self.bottle_neck_neurons = 24
+
+        # encoder layers
+        self.convolution_1 = GCNConv(in_channels=self.number_labels, out_channels=self.filters_1)
+        self.convolution_2 = GCNConv(in_channels=self.filters_1, out_channels=self.filters_2)
+        self.convolution_3 = GCNConv(in_channels=self.filters_2, out_channels=self.filters_3)
+        #self.attention = AttentionModule(self.filters_3)
+        self.attention = torch.nn.MultiheadAttention(embed_dim=self.filters_3, num_heads=1)
+
+        # bottleneck layer
+        self.convolution_4 = GCNConv(in_channels=self.filters_3, out_channels=self.bottle_neck_neurons)
+
+        # decoder layers
+        self.convolution_5 = GCNConv(in_channels=self.bottle_neck_neurons, out_channels=self.filters_2)
+        self.convolution_6 = GCNConv(in_channels=self.filters_2, out_channels=self.filters_1)
+        self.convolution_7 = GCNConv(in_channels=self.filters_1, out_channels=self.number_labels)
+
+        self.dropout = dropout
+
+    def forward(self, adj, features):
+        # encoder
+        features = self.convolution_1(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+        features = self.convolution_2(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+        features = self.convolution_3(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+
+        pooled_features = features.unsqueeze(0)
+        pooled_features, _ = self.attention(pooled_features, pooled_features, pooled_features)
+        pooled_features = pooled_features.squeeze(0)
+
+        # bottleneck
+        pooled_features = self.convolution_4(pooled_features, edge_index=adj)
+        pooled_features = nn.functional.relu(pooled_features)
+        pooled_features = nn.functional.dropout(pooled_features,
+                                               p=self.dropout,
+                                               training=self.training)
+
+        # decoder
+        decoded_features = self.convolution_5(pooled_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        decoded_features = self.convolution_6(decoded_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        decoded_features = self.convolution_7(decoded_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        return decoded_features
+
+class GCN_CN_v4_AE_bn24(nn.Module):
+    def __init__(self, feature_dim_size, num_classes, dropout):
+        super(GCN_CN_v4_AE_bn24, self).__init__()
+
+        self.number_labels = feature_dim_size
+        self.num_classes = num_classes
+
+        self.filters_1 = 64
+        self.filters_2 = 32
+        self.filters_3 = 32
+        self.bottle_neck_neurons = 24
+
+        # encoder layers
+        self.convolution_1 = GCNConv(in_channels=self.number_labels, out_channels=self.filters_1)
+        self.convolution_2 = GCNConv(in_channels=self.filters_1, out_channels=self.filters_2)
+        self.convolution_3 = GCNConv(in_channels=self.filters_2, out_channels=self.filters_3)
+        #self.attention = AttentionModule(self.filters_3)
+        self.attention = torch.nn.MultiheadAttention(embed_dim=self.filters_3, num_heads=1)
+
+        # bottleneck layer
+        self.convolution_4 = GCNConv(in_channels=self.filters_3, out_channels=self.bottle_neck_neurons)
+
+        # decoder layers
+        self.convolution_5 = GCNConv(in_channels=self.bottle_neck_neurons, out_channels=self.filters_2)
+        self.convolution_6 = GCNConv(in_channels=self.filters_2, out_channels=self.filters_1)
+        self.convolution_7 = GCNConv(in_channels=self.filters_1, out_channels=self.number_labels)
+
+        self.dropout = dropout
+
+    def forward(self, adj, features):
+        # encoder
+        features = self.convolution_1(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+        features = self.convolution_2(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+        features = self.convolution_3(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+
+        pooled_features = features.unsqueeze(0)
+        pooled_features, _ = self.attention(pooled_features, pooled_features, pooled_features)
+        pooled_features = pooled_features.squeeze(0)
+
+        # bottleneck
+        pooled_features = self.convolution_4(pooled_features, edge_index=adj)
+        pooled_features = nn.functional.relu(pooled_features)
+        pooled_features = nn.functional.dropout(pooled_features,
+                                               p=self.dropout,
+                                               training=self.training)
+
+        # decoder
+        decoded_features = self.convolution_5(pooled_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        decoded_features = self.convolution_6(decoded_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        decoded_features = self.convolution_7(decoded_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        return decoded_features
+
+class GCN_CN_v4_AE_bn16(nn.Module):
+    def __init__(self, feature_dim_size, num_classes, dropout):
+        super(GCN_CN_v4_AE_bn16, self).__init__()
+
+        self.number_labels = feature_dim_size
+        self.num_classes = num_classes
+
+        self.filters_1 = 64
+        self.filters_2 = 32
+        self.filters_3 = 32
+        self.bottle_neck_neurons = 16
+
+        # encoder layers
+        self.convolution_1 = GCNConv(in_channels=self.number_labels, out_channels=self.filters_1)
+        self.convolution_2 = GCNConv(in_channels=self.filters_1, out_channels=self.filters_2)
+        self.convolution_3 = GCNConv(in_channels=self.filters_2, out_channels=self.filters_3)
+        #self.attention = AttentionModule(self.filters_3)
+        self.attention = torch.nn.MultiheadAttention(embed_dim=self.filters_3, num_heads=1)
+
+        # bottleneck layer
+        self.convolution_4 = GCNConv(in_channels=self.filters_3, out_channels=self.bottle_neck_neurons)
+
+        # decoder layers
+        self.convolution_5 = GCNConv(in_channels=self.bottle_neck_neurons, out_channels=self.filters_2)
+        self.convolution_6 = GCNConv(in_channels=self.filters_2, out_channels=self.filters_1)
+        self.convolution_7 = GCNConv(in_channels=self.filters_1, out_channels=self.number_labels)
+
+        self.dropout = dropout
+
+    def forward(self, adj, features):
+        # encoder
+        features = self.convolution_1(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+        features = self.convolution_2(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+        features = self.convolution_3(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+
+        pooled_features = features.unsqueeze(0)
+        pooled_features, _ = self.attention(pooled_features, pooled_features, pooled_features)
+        pooled_features = pooled_features.squeeze(0)
+
+        # bottleneck
+        pooled_features = self.convolution_4(pooled_features, edge_index=adj)
+        pooled_features = nn.functional.relu(pooled_features)
+        pooled_features = nn.functional.dropout(pooled_features,
+                                               p=self.dropout,
+                                               training=self.training)
+
+        # decoder
+        decoded_features = self.convolution_5(pooled_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        decoded_features = self.convolution_6(decoded_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        decoded_features = self.convolution_7(decoded_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        return decoded_features
+
+class GCN_CN_v4_AE_bn8(nn.Module):
+    def __init__(self, feature_dim_size, num_classes, dropout):
+        super(GCN_CN_v4_AE_bn8, self).__init__()
+
+        self.number_labels = feature_dim_size
+        self.num_classes = num_classes
+
+        self.filters_1 = 64
+        self.filters_2 = 32
+        self.filters_3 = 32
+        self.bottle_neck_neurons = 8
+
+        # encoder layers
+        self.convolution_1 = GCNConv(in_channels=self.number_labels, out_channels=self.filters_1)
+        self.convolution_2 = GCNConv(in_channels=self.filters_1, out_channels=self.filters_2)
+        self.convolution_3 = GCNConv(in_channels=self.filters_2, out_channels=self.filters_3)
+        #self.attention = AttentionModule(self.filters_3)
+        self.attention = torch.nn.MultiheadAttention(embed_dim=self.filters_3, num_heads=1)
+
+        # bottleneck layer
+        self.convolution_4 = GCNConv(in_channels=self.filters_3, out_channels=self.bottle_neck_neurons)
+
+        # decoder layers
+        self.convolution_5 = GCNConv(in_channels=self.bottle_neck_neurons, out_channels=self.filters_2)
+        self.convolution_6 = GCNConv(in_channels=self.filters_2, out_channels=self.filters_1)
+        self.convolution_7 = GCNConv(in_channels=self.filters_1, out_channels=self.number_labels)
+
+        self.dropout = dropout
+
+    def forward(self, adj, features):
+        # encoder
+        features = self.convolution_1(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+        features = self.convolution_2(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+        features = self.convolution_3(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+
+        pooled_features = features.unsqueeze(0)
+        pooled_features, _ = self.attention(pooled_features, pooled_features, pooled_features)
+        pooled_features = pooled_features.squeeze(0)
+
+        # bottleneck
+        pooled_features = self.convolution_4(pooled_features, edge_index=adj)
+        pooled_features = nn.functional.relu(pooled_features)
+        pooled_features = nn.functional.dropout(pooled_features,
+                                               p=self.dropout,
+                                               training=self.training)
+
+        # decoder
+        decoded_features = self.convolution_5(pooled_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        decoded_features = self.convolution_6(decoded_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        decoded_features = self.convolution_7(decoded_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        return decoded_features
+
+
+class GCN_CN_v4_AE_bn1(nn.Module):
+    def __init__(self, feature_dim_size, num_classes, dropout):
+        super(GCN_CN_v4_AE_bn1, self).__init__()
+
+        self.number_labels = feature_dim_size
+        self.num_classes = num_classes
+
+        self.filters_1 = 64
+        self.filters_2 = 32
+        self.filters_3 = 32
+        self.bottle_neck_neurons = 1
+
+        # encoder layers
+        self.convolution_1 = GCNConv(in_channels=self.number_labels, out_channels=self.filters_1)
+        self.convolution_2 = GCNConv(in_channels=self.filters_1, out_channels=self.filters_2)
+        self.convolution_3 = GCNConv(in_channels=self.filters_2, out_channels=self.filters_3)
+        #self.attention = AttentionModule(self.filters_3)
+        self.attention = torch.nn.MultiheadAttention(embed_dim=self.filters_3, num_heads=1)
+
+        # bottleneck layer
+        self.convolution_4 = GCNConv(in_channels=self.filters_3, out_channels=self.bottle_neck_neurons)
+
+        # decoder layers
+        self.convolution_5 = GCNConv(in_channels=self.bottle_neck_neurons, out_channels=self.filters_2)
+        self.convolution_6 = GCNConv(in_channels=self.filters_2, out_channels=self.filters_1)
+        self.convolution_7 = GCNConv(in_channels=self.filters_1, out_channels=self.number_labels)
+
+        self.dropout = dropout
+
+    def forward(self, adj, features):
+        # encoder
+        features = self.convolution_1(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+        features = self.convolution_2(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+        features = self.convolution_3(x=features, edge_index=adj)
+        features = nn.functional.relu(features)
+        features = nn.functional.dropout(features,
+                                               p=self.dropout,
+                                               training=self.training)
+
+        pooled_features = features.unsqueeze(0)
+        pooled_features, _ = self.attention(pooled_features, pooled_features, pooled_features)
+        pooled_features = pooled_features.squeeze(0)
+
+        # bottleneck
+        pooled_features = self.convolution_4(pooled_features, edge_index=adj)
+        pooled_features = nn.functional.relu(pooled_features)
+        pooled_features = nn.functional.dropout(pooled_features,
+                                               p=self.dropout,
+                                               training=self.training)
+
+        # decoder
+        decoded_features = self.convolution_5(pooled_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        decoded_features = self.convolution_6(decoded_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        decoded_features = self.convolution_7(decoded_features, edge_index=adj)
+        decoded_features = nn.functional.relu(decoded_features)
+
+        return decoded_features
+
+
 
 
 class GCN_CN_v5(nn.Module):

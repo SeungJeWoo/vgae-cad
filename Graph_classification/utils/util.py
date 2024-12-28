@@ -26,18 +26,102 @@ class S2VGraph(object):
         self.max_neighbor = 0
         self.name_graph = name_graph
 
+def my_load_data_test(dataset, degree_as_tag=False):
+    g_list = []
+    label_dict = {}
+    feat_dict = {}
+    dataset_path = "../Datasets/" + dataset+ "/"
+    print("dataset_path:", dataset_path)
+    # Carico un grafo, il valore dei nodi è il loro tipo
+    for dir in os.listdir(dataset_path):
+        if os.path.isdir(dataset_path + dir):
+            print("Loading class:",dir)
+            for file in os.listdir(dataset_path + dir + "/"):
+                if file.endswith(".graphml.xml"):
+                    g = nx.read_graphml(dataset_path + dir + "/" + file)
+                    l = int(dir)
+                    node_tags = []
+                    if not l in label_dict:
+                        mapped = len(label_dict)
+                        label_dict[l] = mapped
+                    for node in g:
+                        node_lab = g.nodes[node]["type"]
+                        #print(node_lab)
+                        if not node_lab in feat_dict:
+                            mapped = len(feat_dict)
+                            feat_dict[node_lab] = mapped
+                        node_tags.append(feat_dict[node_lab])
+                    g_list.append(S2VGraph(g, l, node_tags, name_graph=file))
+    print(feat_dict)
+    # add labels and edge_mat
+    for g in g_list:
+        # i miei grafi hanno id in stringa del tipo "#1", qui li vuole in int. Li converto.
+        dict_node_id = {}
+        for node in g.g:
+            idx = node
+            if not idx in dict_node_id:
+                mapped = len(dict_node_id)
+                dict_node_id[idx] = mapped
+
+        g.neighbors = [[] for i in range(len(g.g))]
+        for i, j in g.g.edges():
+            int_i = dict_node_id[i]
+            int_j = dict_node_id[j]
+            g.neighbors[int_i].append(int_j)
+            g.neighbors[int_j].append(int_i)
+        degree_list = []
+        for i in range(len(g.g)):
+            g.neighbors[i] = g.neighbors[i]
+            degree_list.append(len(g.neighbors[i]))
+        g.max_neighbor = max(degree_list)
+
+        g.label = label_dict[g.label]
+
+        edges = []
+        for pair in g.g.edges():
+            g1, g2 = pair
+            edges.append([dict_node_id[g1], dict_node_id[g2]])
+        edges.extend([[i, j] for j, i in edges])
+        deg_list = list(dict(g.g.degree(range(len(g.g)))).values())
+        g.edge_mat = np.transpose(np.array(edges, dtype=np.int32), (1, 0))
+
+    if degree_as_tag:
+        for g in g_list:
+            g.node_tags = list(dict(g.g.degree).values())
+
+    # Extracting unique tag labels
+    tagset = set([])
+    for g in g_list:
+        tagset = tagset.union(set(g.node_tags))
+
+    tagset = list(tagset)
+    tag2index = {tagset[i]: i for i in range(len(tagset))}
+
+    for g in g_list:
+        g.node_features = np.zeros((len(g.node_tags), len(tagset)), dtype=np.float32)
+        g.node_features[range(len(g.node_tags)), [tag2index[tag] for tag in g.node_tags]] = 1
+
+    print('# classes: %d' % len(label_dict))
+    print('# maximum node tag: %d' % len(tagset))
+
+    print("# data: %d" % len(g_list))
+
+    return g_list, len(label_dict), feat_dict
+
+
 
 def my_load_data(dataset, degree_as_tag=False):
     g_list = []
     label_dict = {}
     feat_dict = {}
     dataset_path = "../Datasets/" + dataset+ "/"
+    print("dataset_path:", dataset_path)
     # Carico un grafo, il valore dei nodi è il loro tipo
     for dir in os.listdir(dataset_path):
         if os.path.isdir(dataset_path + dir):
             print("Loading class:",dir)
             for file in os.listdir(dataset_path + dir + "/"):
-                if file.endswith(".graphml"):
+                if file.endswith(".graphml.xml"):
                     g = nx.read_graphml(dataset_path + dir + "/" + file)
                     l = int(dir)
                     node_tags = []
