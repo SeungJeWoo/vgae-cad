@@ -6,7 +6,6 @@ This repository is an adaptation and extension of the original work by Lorenzo M
 ### **Contributions by SeungJe Woo**:
 - **Developed a CAD file generation module**: Designed and implemented a method to create CAD files using a **Variable Graph Autoencoder (VGAE)**.
 - **Integrated generative modeling with classification tasks**: Extended the repository's capabilities to generate and classify 3D CAD models, ensuring compatibility with STEP file formats.
-- **Enhanced usability and modularity**: Improved the structure and usability of the repository to support additional workflows, including generative model training.
 
 The original repository focused on the classification of 3D CAD models in their native STEP format. My contributions add a generative modeling component using VGAEs, enabling the creation of synthetic CAD models for downstream tasks such as training, validation, and benchmarking.
 
@@ -28,7 +27,6 @@ Follow the original installation steps provided in the repository and add the fo
 
 1. Install additional requirements for VGAE:
    ```bash
-   conda install pytorch-lightning
    conda install -c conda-forge networkx
    ```
 
