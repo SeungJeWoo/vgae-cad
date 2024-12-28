@@ -1,119 +1,95 @@
-Adapted by: SeungJe Woo
+# CAD 3D Model Classification and Generation using Graph Neural Networks
 
-Based on the Original Work by Lorenzo Mandelli and Stefano Berretti, Università degli Studi di Firenze
+## Authors and Contributions
+This repository is an adaptation and extension of the original work by Lorenzo Mandelli and Stefano Berretti at Università degli Studi di Firenze, focusing on 3D CAD model classification using Graph Neural Networks (GNNs). 
 
-# CAD 3D Model classification by Graph Neural Networks: A new approach based on STEP format
-## Authors: Lorenzo Mandelli, Stefano Berretti
-#### Università degli Studi di Firenze
+### **Contributions by SeungJe Woo**:
+- **Developed a CAD file generation module**: Designed and implemented a method to create CAD files using a **Variable Graph Autoencoder (VGAE)**.
+- **Integrated generative modeling with classification tasks**: Extended the repository's capabilities to generate and classify 3D CAD models, ensuring compatibility with STEP file formats.
+- **Enhanced usability and modularity**: Improved the structure and usability of the repository to support additional workflows, including generative model training.
+
+The original repository focused on the classification of 3D CAD models in their native STEP format. My contributions add a generative modeling component using VGAEs, enabling the creation of synthetic CAD models for downstream tasks such as training, validation, and benchmarking.
+
+---
+
 ## Abstract
-*In this paper, we introduce a new approach for retrieval and classification of 3D models that directly performs in the CAD format without any format conversion to other representations like point clouds or meshes, thus avoiding any loss of information. Among the various CAD formats, we consider the widely used STEP extension, which represents a standard for product manufacturing information. This particular format represents a 3D model as a set of primitive elements such as surfaces and vertices linked together. In our approach, we exploit the linked structure of STEP files to create a graph in which the nodes are the primitive elements and the arcs are the connections between them. We then use Graph Neural Networks (GNNs) to solve the problem of model classification. Finally, we created two datasets of 3D models in native CAD format, respectively, by collecting data from the Traceparts model library and from the Configurators software modeling company. We used these datasets to test and compare our approach with respect to state-of-the-art methods that consider other 3D formats*
+This repository now supports both the **classification** and **generation** of 3D CAD models. Classification leverages Graph Neural Networks (GNNs) to analyze and retrieve models in the STEP format, while generation uses a Variable Graph Autoencoder (VGAE) to create synthetic CAD models, enriching datasets for more robust analysis. By combining classification and generation, this repository provides an integrated framework for CAD-based machine learning tasks.
 
-Details about the implementation and the obtained results can be found in the `docs` folder.
+### Original Abstract (Mandelli & Berretti):
+*In this paper, we introduce a new approach for retrieval and classification of 3D models that directly performs in the CAD format without any format conversion to other representations like point clouds or meshes, thus avoiding any loss of information. Among the various CAD formats, we consider the widely used STEP extension, which represents a standard for product manufacturing information. This particular format represents a 3D model as a set of primitive elements such as surfaces and vertices linked together. In our approach, we exploit the linked structure of STEP files to create a graph in which the nodes are the primitive elements and the arcs are the connections between them. We then use Graph Neural Networks (GNNs) to solve the problem of model classification.*  
+
+Building on this foundation, I extended the repository to support **generative modeling with VGAEs**.
 
 ---
 
 ## Installation
 
-1. Create Conda virtual environment:
+Follow the original installation steps provided in the repository and add the following for the generative model:
 
-    ```
-    conda create --name 3D_STEP_Classification python=3.8
-    conda activate 3D_STEP_Classification
-    ```
-    
-2. Clone this repository:
-    ```
-    git clone https://github.com/divanoLetto/3D_STEP_Classification
-    ```
-3. Install CUDA Toolkit version 11.3 from the [official site](https://developer.nvidia.com/cuda-11.3.0-download-archive).
+1. Install additional requirements for VGAE:
+   ```bash
+   conda install pytorch-lightning
+   conda install -c conda-forge networkx
+   ```
 
-4.  Install the following requirements:
-    ```
-    conda install pytorch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0 cudatoolkit=11.3 -c pytorch
-    conda install pyg -c pyg
-    conda install -c conda-forge tensorboardx
-    conda install -c anaconda scikit-learn
-    conda install -c conda-forge matplotlib
-    conda install -c anaconda scikit-image
-    conda install -c conda-forge pythonocc-core
-    ```
-
-5. Finally, make sure to obtain the [Traceparts STEP dataset](https://drive.google.com/drive/folders/1JmrJCWOB8ejpYnvAS9ViY7TmJl2yCP5Z?usp=sharing), extract the STEP models and save them in the `/Datasets/` folder.
-
-# Usage
-
-The program implements the classification and retrieval of 3D models through an approach based on graphs obtained from STEP files and the [MVCNN](https://github.com/jongchyisu/mvcnn_pytorch) approach based on multiple 2D views.
-
-## Graph classification and retrieval
-
-For the graph based approach, to convert a 3D STEP dataset into a Graph dataset, run the script:    
-```
-$ python step_2_graph.py
-```    
-It takes two arguments: `--path_stp` specifies the path of the input STEP dataset and `--path_graph` specifies the output path where the graph dataset will be saved.
-Then for the classification task on the relised dataset run the script:   
-```
-$ python train_GCN.py
-```
-It takes 5 arguments: `--run_folder` indicates the run directory, `--learning_rate` sets the strating learning rate, `--batch_size` sets the batch size, `--num_epochs` sets the number of traing epochs, `--dropout` the dropout probability.    
-Alternatively, we provide the `Graph_classification.ipynb` ipython notebook, that performs both the dataset conversion and graph classification task.   
-A Graph Convolutional Neural Network model trained for the classification task in this way can then be used for the retrieval task by running the `Graph_retrieval.ipynb` script.
-
-## Multi-views classification 
-
-For the multi 2D views  based approach, to convert each 3D model into a 12 2D views,  run the script:
-```
-$ python step_2_multiview.py 
-```
-It takes two arguments: `--path_stp` specifies the path of the input STEP dataset and `--path_multiview` specifies the output path where the multi-views dataset will be saved.   
-Then for the classification task run the script:
-```
-$ python train_mvcnn.py
-```
-It takes 10 arguments: `--num_models` indicates the number of models per class, `--lr` sets the strating learning rate, `--bs` sets the batch size, `--weight_decay` sets the weight decay ratio of the learning rate, `--num_epoch` sets the number of training epochs, `--no_pretraining` indicates if the base net will start pretrained or not, `--cnn_name` the net name, num_views the number of 2D views, `--train_path` specifies the path of the train data, `--test_path` specifies the path of the test data, `--val_path` specifies the path of the validation data.   
-Alternatively, we provide a the `MultiViews_Classification.ipynb.ipynb` ipython notebook, that performs both the dataset conversion and multi-views classification task. 
-Similarly to the graph-based approach, a model trained for classification task can then be used for the 3D retrieval task.
+2. Prepare datasets for generative modeling:
+   - Ensure that datasets include labeled graphs representing CAD components (STEP format is supported).
 
 ---
 
-# Repository Requirements
+## Usage
 
-This code was written in Pytorch 1.11. with CUDA Toolkit version 11.3 to enable GPU computations. We recommend setting up a virtual environment using [Miniconda](https://docs.conda.io/en/latest/miniconda.html). Python 3.8 is required for the PythonOCC library needed for the conversion from STEP to the multi-views data.
+### Graph-Based Classification
+Refer to the original instructions for graph-based classification using `step_2_graph.py` and `train_GCN.py`.
 
-## Data Organization
+### Generative Modeling with VGAE
+1. **Train the VGAE model**:
+   ```bash
+   python train_vgae.py --dataset_path <path_to_dataset> --output_path <output_directory> --epochs <num_epochs>
+   ```
 
-The following is the organization of the dataset directories expected by the code:
+2. **Generate new CAD models**:
+   ```bash
+   python generate_cad.py --model_path <trained_model_path> --num_samples <number_of_samples>
+   ```
 
-* data **root_dir**/
-  * **dataset** name/ (eg Traceparts)
-    * STEP_models (all of the 3D STEP models divided by class)
-      * Class 0 (all STEP models of the class 0)
-      * Class 1 (all STEP models of the class q)
-      * ...
-    * graphml_models (all of the converted graphml models divided by class)
-      * Class 0 (all graphml models of the class 0)
-      * Class 1 (all graphml models of the class 1)
-      * ... 
-    * MVCNN_models (all of the converted multi-views 2D images divided by class)
-      * Class 0
-        * train (the train set 2D views of the class 0)
-        * test (the test set 2D views of the class 0)
-        * valid (the validation set 2D views of the class 0)
-      * ...
+3. **Visualize generated models**:
+   Use the script `visualize_cad.py` to render and analyze generated CAD models.
 
-# Cite
+### Example Workflow
+1. Convert STEP files to graphs using `step_2_graph.py`.
+2. Train a VGAE model using `train_vgae.py`.
+3. Generate synthetic CAD models and classify them using `train_GCN.py` for evaluation.
 
-Please consider citing our work if you find it useful:
+---
+
+## Repository Requirements
+This repository builds on the original implementation, which uses PyTorch and CUDA Toolkit version 11.3 for GPU computations. The generative model component additionally requires PyTorch Lightning and NetworkX.
+
+---
+
+## Acknowledgments
+This repository is adapted from the original work by Lorenzo Mandelli and Stefano Berretti. Please cite their work if you use this repository in your research:
 
 ```
 @misc{https://doi.org/10.48550/arxiv.2210.16815,
   doi = {10.48550/ARXIV.2210.16815},
   url = {https://arxiv.org/abs/2210.16815},
   author = {Mandelli, L. and Berretti, S.},
-  keywords = {Computer Vision and Pattern Recognition (cs.CV), FOS: Computer and information sciences, FOS: Computer and information sciences},
   title = {CAD 3D Model classification by Graph Neural Networks: A new approach based on STEP format},
   publisher = {arXiv},
   year = {2022},
   copyright = {Creative Commons Attribution 4.0 International}
+}
+```
+
+Additionally, please acknowledge my contributions if you use the generative modeling component:
+
+```
+@misc{woo2024cad,
+  author = {SeungJe Woo},
+  title = {Generative Modeling of CAD Files using Variable Graph Autoencoders},
+  year = {2024},
+  note = {Extension of original work by Mandelli and Berretti},
 }
 ```
